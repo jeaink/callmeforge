@@ -1,6 +1,6 @@
-# Forge
+# callmeforge
 
-Forge is a native C++20 game-binary analysis toolkit.
+callmeforge is a native C++20 game-binary analysis toolkit.
 
 ## Current MVP
 
