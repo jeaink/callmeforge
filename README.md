@@ -1,6 +1,6 @@
-# Forge
+# CallMeForge
 
-**Forge** is a native **C++20 game-binary analysis toolkit** designed for inspecting, understanding, and comparing compiled game software.
+**CallMeForge** is a native **C++20 game-binary analysis toolkit** designed for inspecting, understanding, and comparing compiled game software.
 
 It provides a fast, dependency-conscious foundation for binary analysis, with support for PE executable inspection today and deeper static-analysis capabilities planned for future releases.
 
