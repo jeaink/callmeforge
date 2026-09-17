@@ -1,9 +1,9 @@
 ![cmf](CMF.png)
 # 
 
-# Forge
+# CallMeForge
 
-Forge is a native C++20 toolkit for static analysis of PE (Portable Executable)
+CMF is a native C++20 toolkit for static analysis of PE (Portable Executable)
 game binaries. It parses PE32/PE32+ images, scans for strings, recovers code
 structure (functions, basic blocks, control flow), resolves string
 cross-references, detects simple C++ vtables, and diffs two builds.
