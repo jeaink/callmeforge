@@ -1,472 +1,282 @@
 ![cmf](CMF.png)
 # 
 
-**CallMeForge** is a native **C++20 game-binary analysis toolkit** designed for inspecting, understanding, and comparing compiled game software.
+# Forge
 
-It provides a fast, dependency-conscious foundation for binary analysis, with support for PE executable inspection today and deeper static-analysis capabilities planned for future releases.
+Forge is a native C++20 toolkit for static analysis of PE (Portable Executable)
+game binaries. It parses PE32/PE32+ images, scans for strings, recovers code
+structure (functions, basic blocks, control flow), resolves string
+cross-references, detects simple C++ vtables, and diffs two builds.
 
-> Forge is intended for legitimate reverse engineering, debugging, compatibility research, game modding, security research, and analysis of software you own or are authorized to examine.
+It is a developer/RE focused CLI plus a small reusable library (`forge::PEImage`,
+`forge::StringScanner`, `forge::run*` analysis entry points).
 
----
+## Status
 
-## Features
+The original six-phase plan is implemented through Phase 6, at MVP depth:
 
-### Binary Inspection
+| Phase | Name                  | Command         | State |
+|-------|-----------------------|-----------------|-------|
+| 2     | Binary metadata       | `metadata`      | implemented (exports + relocations) |
+| 3     | Code analysis         | `analyze`       | implemented (heuristic) |
+| 4     | Relationship analysis | `relations`     | implemented (string -> code xrefs) |
+| 5     | Type recovery         | `typerecovery`  | implemented (basic vtable detection) |
+| 6     | Binary comparison     | `diff`          | implemented (function-level) |
 
-Forge currently provides low-level inspection of Windows PE binaries:
+Phase 1 (PE parsing, sections, imports) is the foundation in `PEImage`.
 
-* PE32 and PE32+ parsing
-* x86 and x64 architecture detection
-* image base detection
-* entry-point inspection
-* image-size information
-* section-table inspection
-* RVA → file-offset translation
-* import-table inspection
-* ASCII string extraction
-* UTF-16LE string extraction
+## Requirements
 
-### Current Command Set
+- A C++20 compiler. The build sets `CMAKE_CXX_STANDARD 20` and requires it.
+- CMake 3.20 or newer (or a hand-configured MSVC project).
+- Tested with MSYS2 g++ (UCRT64) and MSVC (Visual Studio 2022, x64).
 
-```text
-forge info <file>
-forge sections <file>
-forge imports <file>
-forge strings <file> [min-length]
-forge all <file>
-```
+Warnings are enabled aggressively: `/W4 /permissive-` on MSVC, and
+`-Wall -Wextra -Wpedantic` elsewhere.
 
-Example:
+## Build
 
-```bash
-forge info game.exe
-```
-
-```text
-Forge Binary Analysis
-────────────────────────────────────
-File:          game.exe
-Format:        PE32+
-Architecture:  x64
-Image Base:    0x140000000
-Entry Point:   0x12A430
-Image Size:    0x8F3000
-```
-
-Inspect sections:
-
-```bash
-forge sections game.exe
-```
-
-Inspect imports:
-
-```bash
-forge imports game.exe
-```
-
-Scan strings:
-
-```bash
-forge strings game.exe 8
-```
-
-Run the complete current analysis pipeline:
-
-```bash
-forge all game.exe
-```
-
----
-
-# Why Forge?
-
-Game binaries contain much more useful structure than a list of hexadecimal addresses.
-
-Forge is being designed around a higher-level analysis model:
-
-```text
-Binary
-  ↓
-PE Metadata
-  ↓
-Sections
-  ↓
-Symbols / Exports
-  ↓
-Instructions
-  ↓
-Functions
-  ↓
-References
-  ↓
-Types / Objects
-  ↓
-Relationships
-```
-
-The long-term goal is to let developers investigate a binary through relationships and evidence rather than manually searching through raw memory.
-
-For example, future versions may be able to represent an inferred structure like:
-
-```text
-Player
-├── health
-│   └── offset +0x20
-├── stamina
-│   └── offset +0x24
-├── position
-│   └── offset +0x30
-└── velocity
-    └── offset +0x3C
-```
-
-The important distinction is that Forge will treat these as **analysis results with supporting evidence**, rather than assuming that every discovered address or offset is automatically correct.
-
----
-
-# Architecture
-
-Forge is written in modern C++20 and is designed around independent analysis layers.
-
-```text
-┌───────────────────────────────────────┐
-│               Forge CLI               │
-├───────────────────────────────────────┤
-│           Analysis Pipeline           │
-├───────────────┬───────────────────────┤
-│ PE Parser     │ String Scanner        │
-├───────────────┼───────────────────────┤
-│ Symbol Layer  │ Export Layer          │
-├───────────────┼───────────────────────┤
-│ Disassembler  │ Function Analyzer     │
-├───────────────┼───────────────────────┤
-│ XRef Engine   │ Type Recovery         │
-├───────────────┴───────────────────────┤
-│           Analysis Graph              │
-├───────────────────────────────────────┤
-│              Output API               │
-│        CLI / JSON / GUI / SDK         │
-└───────────────────────────────────────┘
-```
-
-The project is intentionally structured so that future analysis engines can be added without rewriting the core PE infrastructure.
-
----
-
-# Project Layout
-
-```text
-forge/
-├── CMakeLists.txt
-├── README.md
-├── LICENSE
-│
-├── include/
-│   └── forge/
-│       ├── CLI.hpp
-│       ├── PEImage.hpp
-│       ├── PEParser.hpp
-│       └── StringScanner.hpp
-│
-├── src/
-│   ├── main.cpp
-│   ├── CLI.cpp
-│   ├── PEImage.cpp
-│   ├── PEParser.cpp
-│   └── StringScanner.cpp
-│
-├── tests/
-│
-├── docs/
-│
-└── third_party/
-```
-
-As the project grows, the analysis layers will be separated further into reusable components.
-
----
-
-# Requirements
-
-## Windows
-
-Forge is primarily developed for Windows PE analysis.
-
-Recommended environments:
-
-* Windows 10+
-* Windows 11
-* MSYS2 UCRT64
-* Visual Studio 2022
-* CMake 3.20+
-* C++20-compatible compiler
-
-## Toolchains
-
-Supported development toolchains currently include:
-
-* MSYS2 UCRT64 / MinGW
-* Visual Studio 2022
-* other C++20-compatible toolchains may work
-
----
-
-# Build
-
-## MSYS2 UCRT64
-
-```bash
-cd /c/path/to/forge
-
-cmake -S . \
-      -B build \
-      -G "MinGW Makefiles" \
-      -DCMAKE_BUILD_TYPE=Release
-
-cmake --build build -j
-```
-
-The resulting executable will be located in:
-
-```text
-build/forge.exe
-```
-
----
-
-## Visual Studio 2022
-
-From PowerShell or a Visual Studio developer terminal:
-
-```powershell
-cmake -S . -B build -G "Visual Studio 17 2022" -A x64
-cmake --build build --config Release
-```
-
-The resulting executable will normally be located at:
-
-```text
-build/Release/forge.exe
-```
-
----
-
-# Usage
-
-## Binary Information
-
-```bash
-forge info game.exe
-```
-
-Displays core PE metadata including:
-
-* PE format
-* architecture
-* image base
-* entry point
-* image size
-
----
-
-## Section Inspection
-
-```bash
-forge sections game.exe
-```
-
-Example output:
-
-```text
-Name       RVA        VirtualSize   RawSize
-.text      0x1000     0x5A2000      0x5A2200
-.rdata     0x5A3000   0x1F4000      0x1F4200
-.data      0x797000   0x063000      0x058000
-```
-
----
-
-## Import Inspection
-
-```bash
-forge imports game.exe
-```
-
-This can be used to inspect imported modules and imported APIs exposed through the PE import table.
-
-Example:
-
-```text
-KERNEL32.dll
-  CreateFileW
-  ReadFile
-  WriteFile
-
-USER32.dll
-  CreateWindowExW
-  DefWindowProcW
-
-ADVAPI32.dll
-  RegOpenKeyExW
-```
-
----
-
-## String Analysis
-
-```bash
-forge strings game.exe
-```
-
-Specify a minimum string length:
-
-```bash
-forge strings game.exe 8
-```
-
-Forge scans for both ASCII and UTF-16LE strings.
-
----
-
-## Full Analysis
-
-```bash
-forge all game.exe
-```
-
-Runs the currently available analysis modules sequentially.
-
----
-
-# Address Model
-
-Forge distinguishes several address representations.
-
-```text
-File Offset
-    ↓
-RVA
-    ↓
-Virtual Address
-```
-
-For example:
-
-```text
-File Offset:    0x00234000
-RVA:            0x001F4000
-Image Base:     0x140000000
-Virtual Address:0x1401F4000
-```
-
-The PE parser provides the mapping required to safely translate between these representations.
-
-This becomes important for future static-analysis features such as instruction references, exports, functions, and candidate field accesses.
-
----
-
-# Design Goals
-
-Forge is being built around several principles.
-
-### Native
-
-Forge is a native C++20 application rather than a scripting wrapper.
-
-### Fast
-
-Large binaries should be analyzed efficiently, with incremental work where practical.
-
-### Modular
-
-Major analysis components should be independently replaceable.
-
-### Evidence-driven
-
-Inferred information should expose how it was derived.
-
-### Scriptable
-
-Every useful analysis result should eventually be accessible through machine-readable output.
-
-### Extensible
-
-New binary formats, architectures, disassemblers, and analysis engines should be possible without redesigning the entire application.
-
----
-
----
-
-# Contributing
-
-Contributions are welcome.
-
-Before opening a pull request:
-
-1. Build Forge with C++20.
-2. Make sure existing functionality still works.
-3. Keep new analysis functionality isolated from unrelated components.
-4. Add tests for parser and analysis changes where practical.
-5. Document new CLI commands and output formats.
-
-For larger changes, opening an issue first is recommended so the architecture can be discussed before implementation.
-
----
-
-# Development
-
-Debug build:
-
-```bash
-cmake -S . -B build -G "MinGW Makefiles" -DCMAKE_BUILD_TYPE=Debug
-cmake --build build -j
-```
-
-Release build:
+CMake with MSYS2 / MinGW Makefiles:
 
 ```bash
 cmake -S . -B build -G "MinGW Makefiles" -DCMAKE_BUILD_TYPE=Release
 cmake --build build -j
 ```
 
----
+CMake with Visual Studio 2022:
 
-# Example Workflow
+```powershell
+cmake -S . -B build -G "Visual Studio 17 2022" -A x64
+cmake --build build --config Release
+```
 
-A typical analysis workflow may eventually look like:
+Direct g++ one-liner (handy for a quick local build):
 
 ```bash
+g++ -std=c++20 -Iinclude -O2 -o forge.exe src/main.cpp src/PEImage.cpp src/PEParser.cpp src/StringScanner.cpp src/Analysis.cpp src/CLI.cpp
+```
+
+If you build inside Visual Studio directly, make sure all six sources are in the
+project (in particular `src/Analysis.cpp`) and that C++ Language Standard is set
+to C++20.
+
+## Commands
+
+General syntax: `forge <command> <file> [args]`.
+
+| Command | Description |
+|---------|-------------|
+| `info <file>` | Arch, image base, entry RVA, image size, section/import counts |
+| `sections <file>` | Section table (RVA, virtual/raw sizes, R/W/X flags) |
+| `imports <file>` | Imported symbols grouped by module |
+| `strings <file> [min-length]` | ASCII/UTF-8/UTF-16 string scan (default min length 5) |
+| `all <file>` | `info` + `sections` + `imports` |
+| `hexdump <file> <offset> <len>` | Hex+ASCII dump (`offset` accepts `0x` hex) |
+| `peek-rva <file> <rva>` | Map RVA to file offset and show the u32 there |
+| `peek-offset32 <file> <offset>` | Read a little-endian u32 at a file offset |
+| `metadata <file>` | Phase 2: exports and relocation summary |
+| `analyze <file> [show]` | Phase 3: discover functions (RVA, size, hash) |
+| `relations <file> [show]` | Phase 4: strings and the code that references them |
+| `typerecovery <file> [show]` | Phase 5: candidate vtables |
+| `diff <v1> <v2> [show]` | Phase 6: compare two builds |
+
+`help`, `--help` and `-h` print usage.
+
+### The `[show]` argument
+
+`analyze`, `relations`, `typerecovery` and `diff` print a summary line and then a
+preview of the results. `[show]` controls how many rows are printed:
+
+- omitted: default preview of `20` results
+- `0`: print everything
+- `N`: print up to `N` results
+
+When a preview is truncated the tool prints a `... (N more; pass a count to show
+more)` line.
+
+## Analysis phases
+
+### Phase 2 — Binary metadata (`metadata`)
+
+Summarizes what `PEImage` parsed: architecture, image base/entry/size, section,
+import, export and relocation counts, the export table (by name or `#ordinal`),
+and a relocation-type histogram.
+
+```text
+Binary metadata
+  File:       game.exe
+  Arch:       x64
+  Image base: 0x140000000
+  Entry RVA:  0x00001400
+  Image size: 0x0005B000
+  Sections:   19
+  Imports:    84
+  Exports:    0
+  Relocs:     50
+```
+
+### Phase 3 — Code analysis (`analyze`)
+
+Heuristic disassembly and control-flow recovery, not a full x86 decoder:
+
+- function entry candidates from standard prologues
+  (`55 48 89 E5` on x64, `55 8B EC` on x86) plus every exported RVA
+- basic blocks built by walking instructions until a return, jump or fall-through
+- direct call/jump targets resolved through the section table
+- each function fingerprinted with an FNV-1a 64-bit hash of its first bytes
+
+```text
+Discovered 1332 functions
+  0x00001000  size=24  hash=0xA1B2C3D4E5F60718  <unnamed>
+  ...
+  ... (1312 more; pass a count to show more)
+```
+
+### Phase 4 — Relationship analysis (`relations`)
+
+Scans strings, converts each string's file offset to an RVA, and finds code that
+references it:
+
+- x64: RIP-relative `LEA`/`MOV` (`REX.W + 8D/8B`, `mod=00, rm=101`) and
+  `mov r64, imm64` absolute pointers
+- x86: absolute `push`/`mov`/`moffs32` immediates
+
+```text
+Found 195 string references
+  "kernel32.dll"
+     offset=0x0004A100  refs=2
+        ref @ 0x00001234
+        ref @ 0x00002010
+```
+
+### Phase 5 — Type recovery (`typerecovery`)
+
+Basic vtable detection: scans non-executable sections for runs of at least three
+consecutive 4-byte RVAs that each point into an executable section, and reports
+each run as a candidate vtable with its methods.
+
+```text
+Found 78 vtables
+  vtable @ 0x0004C020  methods=5
+        0x00001100
+        0x00001140
+        ...
+```
+
+### Phase 6 — Binary comparison (`diff`)
+
+Runs Phase 3 on both files and matches functions:
+
+- named functions (exports) matched by name; a differing hash counts as
+  *changed*, a differing RVA is reported as a candidate layout change
+- unnamed functions matched by content hash; unmatched ones count as
+  *added* / *removed*
+
+```text
+Functions changed: 0
+Functions added:   15
+Functions removed: 1332
+
+Candidate layout changes:
+
+ExportedFunction::InitRenderer
+    v1 -> 0x00002A10
+    v2 -> 0x00002A40
+```
+
+## Library API
+
+`forge::PEImage` (`include/forge/PEImage.hpp`):
+
+- `load(path, error)` — parse a file; returns false and fills `error` on failure
+- `data()`, `info()`, `sections()`, `imports()`, `exports()`, `relocations()`
+- `rvaToOffset(rva, out)` — map an RVA to a file offset
+- `readUInt32AtOffset(offset, out)` — little-endian u32 at a file offset
+- `readBytes(offset, length, out)` — copy bytes into a vector
+
+`PEInfo` carries `architecture`, `entryPointRva`, `imageBase`, `imageSize`,
+`sectionAlignment`, `fileAlignment`. `Section` carries `name`, `virtualAddress`,
+`virtualSize`, `rawAddress`, `rawSize`, `characteristics`.
+
+`forge::StringScanner` (`include/forge/StringScanner.hpp`):
+
+```cpp
+std::vector<StringHit> scan(
+    const std::vector<std::uint8_t>& data,
+    std::size_t minimumLength = 5,
+    bool detectUtf8 = true,
+    bool detectUtf16le = true,
+    bool detectUtf16be = false,
+    bool unique = false) const;
+```
+
+`StringHit` reports the file `offset`, `value`, whether it is `unicode`, and the
+detected `encoding` (`ASCII`, `UTF-8`, `UTF-16LE`, `UTF-16BE`).
+
+`forge::Analysis` (`include/forge/Analysis.hpp`) exposes:
+
+```cpp
+bool runBinaryMetadata(const std::string& path, std::string& outMessage);
+bool runCodeAnalysis(const std::string& path, std::vector<FunctionInfo>& outFunctions);
+bool runRelationshipAnalysis(const std::string& path, std::vector<StringReference>& outStringRefs);
+bool runTypeRecovery(const std::string& path, std::vector<VTable>& outVTables);
+bool runBinaryComparison(const std::string& v1, const std::string& v2,
+                         DiffSummary& outSummary, std::vector<LayoutChange>& outChanges);
+```
+
+Result types: `FunctionInfo{rva, size, hash, name}`,
+`StringReference{value, fileOffset, referencingRvas}`,
+`VTable{rva, methodRvas}`, `DiffSummary{functionsChanged, functionsAdded,
+functionsRemoved}`, `LayoutChange{structureName, fieldName, v1Offset, v2Offset}`.
+
+## Project layout
+
+```text
+include/forge/
+  Analysis.hpp        analysis phase types + run* entry points
+  CLI.hpp             runCLI declaration
+  PEImage.hpp         PE image model and parsing API
+  PEParser.hpp        architectureName / sectionCharacteristics helpers
+  StringScanner.hpp   string scanning API
+src/
+  Analysis.cpp        phases 3-6 implementations
+  CLI.cpp             command dispatch + output formatting
+  PEImage.cpp         PE parsing (headers, sections, imports, exports, relocs)
+  PEParser.cpp        small formatting helpers
+  StringScanner.cpp   ASCII / UTF-8 / UTF-16 scanning
+  main.cpp            argv -> runCLI
+```
+
+## Examples
+
+```bash
+# quick overview
 forge info game.exe
-forge sections game.exe
-forge imports game.exe
-forge strings game.exe 8
-forge symbols game.exe
-forge functions game.exe
-forge xrefs game.exe
-forge analyze game.exe
+forge all game.exe
+
+# strings and where code points at them
+forge strings game.exe 6
+forge relations game.exe 40
+
+# recover functions, vtables
+forge analyze game.exe 50
+forge typerecovery game.exe
+
+# compare two builds
+forge diff game_v1.exe game_v2.exe 30
 ```
 
-Then export the results:
+## Limitations
 
-```bash
-forge analyze game.exe --json > analysis.json
-```
-
----
-
-# Status
-
-**Current version:** `0.1.0`
-
-Forge is currently in early development.
-
-The PE analysis layer is functional, while deeper code-analysis and type-recovery systems are under development.
-
-Expect APIs and command syntax to change before the first stable release.
-
----
-
-# License
-
-See [`LICENSE`](LICENSE) for the project's license.
+- x86/x64 are the primary targets. ARM64 images parse, but function/vtable
+  recovery assumes x86/x64 encodings and returns little for ARM64.
+- Disassembly is heuristic (prologue-based), so function counts are approximate
+  and can include false positives or miss uncommon prologues.
+- String cross-reference detection is pattern based, not a complete instruction
+  decoder: indirect and computed references are not resolved.
+- Vtable detection is structural (runs of code pointers) and is not RTTI aware,
+  so some candidates are not real vtables.
+- `diff` reports function- and export-level differences; it does not recover real
+  structure field offsets.
+- This is a developer tool, not a signed product; run it only on binaries you are
+  allowed to analyze.
