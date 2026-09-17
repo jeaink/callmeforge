@@ -1,5 +1,4 @@
 ![cmf](CMF.png)
-
 # 
 
 **CallMeForge** is a native **C++20 game-binary analysis toolkit** designed for inspecting, understanding, and comparing compiled game software.
