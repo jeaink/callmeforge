@@ -1,6 +1,4 @@
-#pragma once
-
-#include "PEImage.hpp"
+#include "../include/forge/PEImage.hpp"
 
 namespace forge {
 
